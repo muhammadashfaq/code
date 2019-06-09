@@ -9,7 +9,9 @@ import android.content.IntentSender;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Location;
+import android.os.AsyncTask;
 import android.os.Build;
+import android.os.StrictMode;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.app.ActivityCompat;
@@ -37,11 +39,18 @@ import com.google.android.gms.location.LocationSettingsStatusCodes;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.onesignal.OneSignal;
+
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.Scanner;
 
 public class HomeActivity extends AppCompatActivity implements
         GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener,
@@ -61,6 +70,8 @@ public class HomeActivity extends AppCompatActivity implements
     private LocationRequest mCurrentLocationRequest;
     private String mCurrentLocation = "";
     private SharedPreferences mLocationSharedPreferences;
+    String loggedIn_user_gmail;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -79,7 +90,11 @@ public class HomeActivity extends AppCompatActivity implements
         btnRescueOffices = findViewById(R.id.btn_nearby_rescue);
        // btnGoToMaps.setEnabled(false);
 
+        //Setting tag for current user
+        loggedIn_user_gmail = FirebaseAuth.getInstance().getCurrentUser().getEmail();
+        OneSignal.sendTag("USER_ID",loggedIn_user_gmail);
 
+        sendNotification();
         // Kick off the request to build GoogleApiClient.
         buildGoogleApiClient();
 
@@ -350,5 +365,87 @@ public class HomeActivity extends AppCompatActivity implements
                         }).show();
             }
         }
+    }
+
+    private void sendNotification()
+    {
+
+        Toast.makeText(this, "Current Recipients is : user1@gmail.com ( Just For Demo )", Toast.LENGTH_SHORT).show();
+
+        AsyncTask.execute(new Runnable() {
+            @Override
+            public void run() {
+                int SDK_INT = android.os.Build.VERSION.SDK_INT;
+                if (SDK_INT > 8) {
+                    StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder()
+                            .permitAll().build();
+                    StrictMode.setThreadPolicy(policy);
+                    String send_email;
+
+
+
+                    //This is a Simple Logic to Send Notification different Device Programmatically....
+                    if (loggedIn_user_gmail.equals("ashfaq@gmail.com")) {
+                        Log.i(TAG,"lorem@gmail.com");
+                        send_email = "lorem@gmail.com";
+                    } else {
+                        Log.i(TAG,"ashfaq@gmail.com");
+                        send_email = "ashfaq@gmail.com";
+                    }
+
+                    try {
+                        String jsonResponse;
+                        Log.i(TAG,"in");
+                        URL url = new URL("https://onesignal.com/api/v1/notifications");
+                        HttpURLConnection con = (HttpURLConnection) url.openConnection();
+                        con.setUseCaches(false);
+                        con.setDoOutput(true);
+                        con.setDoInput(true);
+
+                        con.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+                        con.setRequestProperty("Authorization", "Basic NTJhNjA4YmMtMmE2MS00MmE3LWJmODQtODE0ZjdlYmMxOTRl");
+                        con.setRequestMethod("POST");
+
+                        String strJsonBody = "{"
+                                + "\"app_id\": \"e1ae1663-9297-4f25-8706-94d0eb241e6c\","
+
+                                + "\"filters\": [{\"field\": \"tag\", \"key\": \"USER_ID\", \"relation\": \"=\", \"value\": \"" + send_email + "\"}],"
+
+                                + "\"data\": {\"My\": \"First\"},"
+                                + "\"Notification using OneSignal\": {\"en\": \"English Message\"}"
+                                + "}";
+
+
+                        System.out.println("strJsonBody:\n" + strJsonBody);
+
+                        byte[] sendBytes = strJsonBody.getBytes("UTF-8");
+                        con.setFixedLengthStreamingMode(sendBytes.length);
+
+                        OutputStream outputStream = con.getOutputStream();
+                        outputStream.write(sendBytes);
+
+                        int httpResponse = con.getResponseCode();
+                        System.out.println("httpResponse: " + httpResponse);
+
+                        if (httpResponse >= HttpURLConnection.HTTP_OK
+                                && httpResponse < HttpURLConnection.HTTP_BAD_REQUEST) {
+                            Scanner scanner = new Scanner(con.getInputStream(), "UTF-8");
+                            jsonResponse = scanner.useDelimiter("\\A").hasNext() ? scanner.next() : "";
+                            scanner.close();
+                        } else {
+                            Scanner scanner = new Scanner(con.getErrorStream(), "UTF-8");
+                            jsonResponse = scanner.useDelimiter("\\A").hasNext() ? scanner.next() : "";
+                            scanner.close();
+                        }
+                        Log.i(TAG,jsonResponse);
+                        System.out.println("jsonResponse:\n" + jsonResponse);
+
+                    } catch (Throwable t) {
+                        Log.i(TAG,t.getMessage());
+                        t.printStackTrace();
+                    }
+                }
+            }
+        });
     }
 }
